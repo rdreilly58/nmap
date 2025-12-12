@@ -1,0 +1,79 @@
+# Makefile for building static Nmap binaries
+# This extends the main Makefile with cross-compilation targets
+
+.PHONY: static-all static-x86_64 static-arm64 static-arm32 static-clean static-docker static-help
+
+# Default target
+static-all: static-docker
+
+# Docker-based build (recommended)
+static-docker:
+	@echo "Building static Nmap binaries using Docker..."
+	@if command -v docker >/dev/null 2>&1; then \
+		docker build -f Dockerfile.build -t nmap-static-builder . && \
+		docker create --name nmap-build-temp nmap-static-builder && \
+		mkdir -p static-binaries && \
+		docker cp nmap-build-temp:/ static-binaries/ && \
+		docker rm nmap-build-temp && \
+		echo "Static binaries built successfully in static-binaries/"; \
+	else \
+		echo "Error: Docker not found. Please install Docker or use native build."; \
+		exit 1; \
+	fi
+
+# Native cross-compilation builds (Linux only)
+static-x86_64:
+	@echo "Building static x86_64 binary..."
+	@./build-static-cross.sh x86_64
+
+static-arm64:
+	@echo "Building static ARM64 binary..."
+	@./build-static-cross.sh arm64
+
+static-arm32:
+	@echo "Building static ARM32 binary..."
+	@./build-static-cross.sh arm32
+
+# Native build all architectures
+static-native:
+	@echo "Building all static binaries natively..."
+	@./build-static-cross.sh all
+
+# Clean static build artifacts
+static-clean:
+	@echo "Cleaning static build artifacts..."
+	@rm -rf static-binaries build
+	@docker rmi nmap-static-builder 2>/dev/null || true
+	@docker rm nmap-build-temp 2>/dev/null || true
+	@echo "Cleanup completed"
+
+# Install dependencies for native builds
+static-deps:
+	@echo "Installing dependencies for static builds..."
+	@./build-static-cross.sh deps
+
+# Help target
+static-help:
+	@echo "Static Nmap Build Targets:"
+	@echo ""
+	@echo "  static-all      Build all architectures using Docker (default)"
+	@echo "  static-docker   Build using Docker (recommended)"
+	@echo "  static-native   Build all using native cross-compilation"
+	@echo "  static-x86_64   Build only x86_64 binary (native)"
+	@echo "  static-arm64    Build only ARM64 binary (native)"
+	@echo "  static-arm32    Build only ARM32 binary (native)"
+	@echo "  static-deps     Install build dependencies (native)"
+	@echo "  static-clean    Clean build artifacts"
+	@echo "  static-help     Show this help"
+	@echo ""
+	@echo "Docker method (recommended):"
+	@echo "  - Works on Windows, macOS, and Linux"
+	@echo "  - Requires Docker Desktop"
+	@echo "  - Fully isolated build environment"
+	@echo ""
+	@echo "Native method (Linux only):"
+	@echo "  - Requires cross-compilation toolchains"
+	@echo "  - Run 'make static-deps' first"
+	@echo "  - Faster builds after initial setup"
+	@echo ""
+	@echo "Output: static-binaries/ directory with nmap-{x86_64,arm64,arm32}"
